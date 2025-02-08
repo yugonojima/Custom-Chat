@@ -1,0 +1,16 @@
+{
+  "name": "Custom Chat",
+  "build": {
+    "dockerfile": "../Dockerfile"
+  },
+  "appPort": ["8501:8501"],
+  "customizations": {
+    "vscode": {
+        "extensions": [
+            "ms-python.debugpy", //ExtentionIDをCopyして貼り付け
+            "ms-python.python",
+            "ms-toolsai.jupyter"
+        ]
+    }
+  }
+}

@@ -1,0 +1,3 @@
+-r App/requirements.txt
+jupyterlab
+plotly

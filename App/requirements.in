@@ -1,0 +1,15 @@
+python-dotenv
+pytest
+streamlit
+lxml
+bs4
+langchain==0.2.14
+langchain-community==0.2.12
+langchain-openai==0.1.19
+langchain-core==0.2.32
+openai
+tiktoken
+nest-asyncio
+pypdf
+pandas
+faiss-cpu
