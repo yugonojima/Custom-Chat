@@ -22,8 +22,14 @@ ASSISTANT_NAME = "assistant"
 def main() :
 
   st.title('Azure Custom Chat')
-  AIservice_key = os.getenv('AZURE_AISERVICE_API_KEY')
-  AIservice_endpoint = os.getenv('AZURE_AISERVICE_ENDPOINT')
+
+  # クリアボタン
+  with st.sidebar:
+     if st.button("Clear Chat"):
+        st.session_state.chat_log = []
+     message_num = st.slider("会話履歴数", min_value=5, max_value=50, value=10)
+
+  #環境変数の取得
   openAI_key = os.getenv('AZURE_OPENAI_API_KEY')
   openAI_endpoint = os.getenv('AZURE_OPENAI_ENDPOINT')
 
@@ -39,12 +45,12 @@ def main() :
      st.error("EmbeddingのAPIKeyを設定してください")
 
   model = None
-  if AIservice_key != "":
+  if openAI_key != "":
      model = AzureChatOpenAI(
-        api_key=AIservice_key,
+        api_key=openAI_key,
         azure_deployment="gpt-4",
         openai_api_version="2024-10-21",
-        azure_endpoint=AIservice_endpoint
+        azure_endpoint=openAI_endpoint
      )   
   else:
      st.error("ChatモデルのAPIKeyを設定してください")
@@ -104,12 +110,23 @@ def main() :
         response += r.content
         msg_placeholder.markdown(response + "◼️")
       msg_placeholder.markdown(response)
-     
+      
+      # ドキュメントのソースを表示
+      col = st.columns(len(relavant_docs))
+      for i, doc in enumerate(relavant_docs):
+         with col[i]:
+            with st.popover(f"ref{i+1}"):
+               st.markdown(doc.page_content)
+
     # セッションにチャットログを追加
     st.session_state.chat_log.extend([
       HumanMessage(content=user_msg),
       AIMessage(content=response)
      ])
+    
+    # チャット履歴数を制限
+    if len(st.session_state.chat_log) > message_num:
+       st.session_state.chat_log = st.session_state.chat_log[-message_num:]
     
 
 if __name__ == '__main__':
