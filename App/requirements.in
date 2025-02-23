@@ -13,3 +13,4 @@ nest-asyncio
 pypdf
 pandas
 faiss-cpu
+pymongo

@@ -61,12 +61,11 @@ def main() :
   chain = get_chain(model)
 
 
-  #FAISSからretrieverを取得
-  if os.path.isdir('vector_store') :
-    retriever = pull_from_faiss(embeddings)
-  else :
-     st.write("データをアップロードしてください。")
-     return
+  #Cosmosからretrieverを取得
+  CONNECTION_STRING = os.environ.get("CONNECTION_STRING")
+  INDEX_NAME = os.environ.get("INDEX_NAME")
+  NAMESPACE = os.environ.get("NAMESPACE")
+  retriever = pull_from_cosmos(embeddings, CONNECTION_STRING, NAMESPACE, INDEX_NAME)
 
   # チャットログを保存したセッション情報を初期化
   if "chat_log" not in st.session_state:
@@ -99,7 +98,7 @@ def main() :
 
 
     #類似ドキュメントを取得
-    relavant_docs = retriever.invoke(new_msg, k=3)
+    relavant_docs = retriever.invoke(new_msg)
 
     #質問の回答を表示
     response = ""

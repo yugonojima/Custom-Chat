@@ -3,6 +3,7 @@ import streamlit as st
 from src.utils import *
 from langchain_openai import AzureOpenAIEmbeddings
 from langchain_openai import OpenAIEmbeddings
+import pymongo
 
 
 # langchain document_loaders参照
@@ -27,35 +28,58 @@ def main():
     else:
         st.error("EmbeddingのAPIKeyを設定してください")
 
-    # FAISSの初期化
-    faiss_db = None
-    st.write("0. FAISSの初期化")
+    # Vector Storeの初期化
+    cosmos_db = None
+    CONNECTION_STRING = os.environ.get("CONNECTION_STRING")
+    INDEX_NAME = os.environ.get("INDEX_NAME")
+    NAMESPACE = os.environ.get("NAMESPACE")
+    DB_NAME, COLLECTION_NAME = NAMESPACE.split(".")
+
+    # DB初期化のチェックボックス
+    checkbox = st.checkbox("DB初期化")
 
     # アップロード pdf ファイル...
-    uploaded_files = st.file_uploader("PDFファイル", type=["pdf"], accept_multiple_files=True)
+    st.session_state.uploaded_files = st.file_uploader("PDFファイル", type=["pdf"], accept_multiple_files=True)
 
-    # ファイルの数だけ処理を行う
-    for i, pdf in enumerate(uploaded_files):
-        with st.spinner(f'{i+1}/{len(uploaded_files)} 処理中...'):
-            # 1. PDFデータ読み込み
-            text=read_pdf_data(pdf)
-            st.write("1. PDFデータ読み込み")
+    if st.button("アップロード"):
+        # ファイルの数だけ処理を行う
+        for i, pdf in enumerate(st.session_state.uploaded_files):
+            with st.spinner(f'{i+1}/{len(st.session_state.uploaded_files)} 処理中...'):
+                # 1. PDFデータ読み込み
+                text=read_pdf_data(pdf)
+                st.write("1. PDFデータ読み込み")
 
-            # 2. データをチャンクに小分けにする
-            docs_chunks=split_data(text)
-            st.write("2. データをチャンクに小分けにする")
+                # 2. データをチャンクに小分けにする
+                docs_chunks=split_data(text)
+                st.write("2. データをチャンクに小分けにする")
 
-            # 3. FAISSにベクトル化して格納
-            faiss_db = add_to_faiss(
-                faiss_db=faiss_db,               
-                docs=docs_chunks,
-                embeddings=embeddings
-            )
+                # 3. CosmosDbにベクトル化して格納
+                try:
+                    client = pymongo.MongoClient(CONNECTION_STRING)
+                    response = client.admin.command("ping")
+                    if response.get("ok") == 1.0:
+                        collection = client[DB_NAME][COLLECTION_NAME] #辞書のようにも振る舞う
+                        if checkbox:
+                            # collectionの初期化
+                            collection.drop()
+                            # indexを初期化
+                            collection.drop_index(INDEX_NAME)
+                        cosmos_db = add_to_cosmos(
+                            cosmos_db = cosmos_db,
+                            docs = docs_chunks,
+                            embeddings = embeddings,
+                            collection = collection,
+                            index_name = INDEX_NAME
+                        )
+                        if cosmos_db is not None:
+                            st.write("3. ベクトルデータの保存")
+                            st.success("完了!")
+                except Exception as e:
+                    print(e)
+                    st.write("3. ベクトルデータの保存失敗")
+                    st.error("失敗!")
 
-    if faiss_db is not None:
-        faiss_db.save_local("vector_store")
-        st.write("3. ベクトルデータの保存")
-        st.success("完了！")
+
 
 if __name__ == '__main__':
     main()

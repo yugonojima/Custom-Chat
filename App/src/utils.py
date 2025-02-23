@@ -1,5 +1,10 @@
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_community.vectorstores import FAISS
+# from langchain_community.vectorstores import FAISS
+from langchain_community.vectorstores.azure_cosmos_db import (
+    AzureCosmosDBVectorSearch,
+    CosmosDBSimilarityType,
+    CosmosDBVectorSearchType,
+)
 from langchain.embeddings.sentence_transformer import SentenceTransformerEmbeddings
 from langchain.document_loaders.sitemap import SitemapLoader
 from langchain_core.output_parsers import StrOutputParser
@@ -35,17 +40,53 @@ def split_data(text):
 
 
 # FAISSにベクトルデータを保存
-def add_to_faiss(faiss_db, docs, embeddings):
+# def add_to_faiss(faiss_db, docs, embeddings):
 
-    with tqdm(total=len(docs), desc="documents ベクトル化") as pbar:
-        for d in docs:
-            if faiss_db:
-                faiss_db.add_documents([d])
-            else:
-                faiss_db = FAISS.from_documents([d], embeddings)
-            pbar.update(1)
-    return faiss_db
+#     with tqdm(total=len(docs), desc="documents ベクトル化") as pbar:
+#         for d in docs:
+#             if faiss_db:
+#                 faiss_db.add_documents([d])
+#             else:
+#                 faiss_db = FAISS.from_documents([d], embeddings)
+#             pbar.update(1)
+#     return faiss_db
 
+# MongoDBにベクトルデータを保存
+def add_to_cosmos(cosmos_db, docs, embeddings, collection, index_name):
+  with tqdm(total=len(docs), desc="documents ベクトル化") as pbar:
+    for d in docs:
+      if cosmos_db :
+        cosmos_db.add_documents([d])
+      else:
+        cosmos_db = AzureCosmosDBVectorSearch.from_documents(
+          [d],
+          embeddings,
+          collection = collection,
+          index_name = index_name
+        )
+      pbar.update(1)
+
+  num_documents = collection.count_documents({})
+  num_lists = 1 if num_documents < 100000 else num_documents // 1000 # IVFクラスターの数、documentsの数/1000
+  dimensions = 1536
+  similarity_algorithm = CosmosDBSimilarityType.COS # cos類似度
+  kind = CosmosDBVectorSearchType.VECTOR_IVF # 検索するドキュメントをクラスターで分割
+  m = 16
+  ef_construction = 64
+  ef_search = 40
+  score_threshold = 0.1
+
+  cosmos_db.create_index(
+      num_lists, dimensions, similarity_algorithm, kind, m, ef_construction
+  )
+  return cosmos_db
+
+def pull_from_cosmos(embeddings, conn_str, name_space, index_name):
+   vectorstore = AzureCosmosDBVectorSearch.from_connection_string(
+      conn_str, name_space, embeddings, index_name=index_name
+   )
+   retriever = vectorstore.as_retriever(search_kwargs={"k": 4}) # 上位k件を取得、他にも検索のオプションを設定可能
+   return retriever
 
 
 def get_contextualize_prompt_chain(model):
@@ -93,11 +134,13 @@ def get_chain(model):
   chain = prompt | model 
   return chain
 
-def pull_from_faiss(embeddings, faiss_db_dir="vector_store"):
-  vectorstore = FAISS.load_local(
-    faiss_db_dir,
-    embeddings,
-    allow_dangerous_deserialization=True#ファイル読み込み時のセキュリティチェックが緩和される
-  )
-  retriver = vectorstore.as_retriever()
-  return retriver
+# def pull_from_faiss(embeddings, faiss_db_dir="vector_store"):
+#   vectorstore = FAISS.load_local(
+#     faiss_db_dir,
+#     embeddings,
+#     allow_dangerous_deserialization=True#ファイル読み込み時のセキュリティチェックが緩和される
+#   )
+#   retriver = vectorstore.as_retriever()
+#   return retriver
+
+
